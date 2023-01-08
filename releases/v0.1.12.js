@@ -1,12 +1,3 @@
-// Temp for dev (compatibility with system which has no console)
-try {
-    clog = console.log;
-} catch($err) {
-    clog = function(){};
-}
-
-// @TODO : Mettre à jour les @return (JSDOC)
-
 /**
  * Instantiates an enhanced Array, which works as Array with extra features
  * to manipulates rows/cells.

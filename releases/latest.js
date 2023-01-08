@@ -1,8 +1,3 @@
-// Temp for dev
-clog = console.log;
-
-// @TODO : Mettre à jour les @return (JSODC)
-
 /**
  * Instantiates an enhanced Array, which works as Array with extra features
  * to manipulates rows/cells.
@@ -109,7 +104,7 @@ function TableJs($fields, $keys, $array) {
                     if(!arguments.hasOwnProperty(a)) continue;
                     let argv = arguments[a];
 
-                    if (!(argv instanceof Array)) {
+                    if (!(Object.prototype.toString.call(argv) === "[object Array]")) {
                         argv = [argv];
                     }
 
@@ -229,6 +224,37 @@ function TableJs($fields, $keys, $array) {
         },
 
         /**
+         * Create a new table row with appropriates fields and methods
+         *
+         * @param [Array|String]  [Optional] Data for the new row.
+         *
+         * @return [Array]		  The TableJs Row with all generated methods.
+         */
+        new: {
+            enumerable: false,
+            writable: false,
+            value: function ($aRowData = []) {
+                // Create a new empty row, then push it in the table.
+                // Return the created row
+                return this[this.push($aRowData) - 1];
+            }
+        },
+
+        /**
+         * Return indexes table. Not purpose for handling but to take acknowledge
+         * about data.
+         *
+         * @return {object}
+         */
+        indexes: {
+            enumerable: false,
+            writable: false,
+            value: function () {
+                return self._indexes;
+            }
+        },
+
+        /**
          * Fields, Keys & Data have the same working process.
          * - Pooling by using Core
          * - Specialisation using callbacks
@@ -281,7 +307,7 @@ function TableJs($fields, $keys, $array) {
                             let argv = arguments[a];
 
                             // Argument value is an Array
-                            if (argv instanceof Array) {
+                            if (Object.prototype.toString.call(argv) === "[object Array]") {
                                 argv.forEach(function ($value) {
                                     if (data.lastIndexOf($value) < 0) {
                                         if (this.callbacks && this.callbacks.add && this.callbacks.add.push) {
@@ -301,6 +327,22 @@ function TableJs($fields, $keys, $array) {
                                 }
                             } else {
                                 // What can we do for other type ?
+                                //
+                                // Note : TestComplete not able to see arguments
+                                // passed directly with bracket as an instance of Array
+                                // For unknown, try as object which is an table
+                                try {
+                                    argv.forEach(function ($value) {
+                                        if (data.lastIndexOf($value) < 0) {
+                                            if (this.callbacks && this.callbacks.add && this.callbacks.add.push) {
+                                                $value = this.callbacks.add.push.call(this, $value);
+                                            }
+                                            data.push($value);
+                                        }
+                                    }.bind(this));
+                                } catch ($err) {
+
+                                }
                             }
                         }
 
@@ -387,7 +429,14 @@ function TableJs($fields, $keys, $array) {
 
                                 // Check if the key is not already defined
                                 if (self._indexes.byKeys.hasOwnProperty(rowKey)) {
-                                    throw `Key '${rowKey}' already exist for row index ${self._indexes.byKeys[rowKey]}`;
+                                    let message = `Error : The generated key '${rowKey}' already exist for the row index ${self._indexes.byKeys[rowKey]}\n`;
+                                    message += `You should add some fields as key component or check your data.\n`;
+                                    message += `Your selected fields for the unique keys are : \n`;
+                                    self._keys.map(function($field){
+                                        message += ` • ${$field}\n`;
+                                    });
+
+                                    throw message ;
                                 } else {
                                     self._indexes.byKeys[rowKey] = ($index === undefined) ? r : $index;
                                 }
@@ -460,7 +509,7 @@ function TableJs($fields, $keys, $array) {
                             let forValue = requestedValues[a];
 
                             // For common processing, transform string to array
-                            if (!(forValue instanceof Array)) {
+                            if (!(Object.prototype.toString.call(forValue) === "[object Array]")) {
                                 forValue = [forValue];
                             }
 
@@ -656,12 +705,55 @@ function TableJs($fields, $keys, $array) {
             writable: false,
             value: function () {
                 let functions = {
+                    /**
+                     * Before pushing the requested field as key, check if the field
+                     * is defined.
+                     *
+                     * Purpose : Core().add()/push callback point.
+                     *
+                     * @param {String} $field
+                     *
+                     * @return {String} $field
+                     */
+                    isFieldExist: function ($field) {
+                        if (self._fields.lastIndexOf($field) < 0) {
+                            let field = $field;
+                            if(field === '') field = '<empty>';
+                            if(field === null) field = '<null>';
+                            if(field === 'undefined') field = '<undefined>';
+                            let message = `The requested field '${field}' as key component does not exist`;
+                            throw message;
+                        }
 
+                        return $field;
+                    },
+
+
+                    /**
+                     * Once fields are added as key component, trigger a new
+                     * indexing process to update byKey index.
+                     *
+                     * Purpose : Core().add()/post callback point.
+                     *
+                     * @param {Array}  $keys
+                     *
+                     * @return {Array} $keys
+                     */
+                    triggerIndexing: function ($keys) {
+                        self._data.core().indexing();
+
+                        return $keys;
+                    }
                 };
 
                 let extended = {
                     data: 'keys',
-                    callbacks: {},
+                    callbacks: {
+                        add: {
+                            push: functions.isFieldExist,
+                            post: functions.triggerIndexing
+                        }
+                    },
                     returns: functions
                 };
 
@@ -704,7 +796,7 @@ function TableJs($fields, $keys, $array) {
                             if(!arguments.hasOwnProperty(i)) continue;
                             let argv = arguments[i];
 
-                            if (argv instanceof Array) {
+                            if (Object.prototype.toString.call(argv) === "[object Array]") {
                                 if (argv.length > 0) {
                                     if (typeof argv[0] === 'string') {
                                         arguments[i] = [argv];
